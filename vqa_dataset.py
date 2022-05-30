@@ -5,10 +5,10 @@ from collections import defaultdict
 from vqa import VQA
 from image_dataset import get_image_ids
 
-image_dir = "Data/VQA/train/images/train10K"
+image_dir = "Data/train/images/train10K"
 image_prefix = "COCO_train2014_"
-qjson = "Data/VQA/train/questions/train_quest_10K.json"
-ajson = "Data/VQA/train/annotations/train_ann_10K.json"
+qjson = "Data/train/questions/train_quest_10K.json"
+ajson = "Data/train/annotations/train_ann_10K.json"
 
 vqa = VQA(ajson, qjson)
 
