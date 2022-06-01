@@ -96,6 +96,8 @@ class VQAImageDataset(Dataset):
 
     def __len__(self):
         ''' Overwritten method for returning size of the dataset.
+        Returns:
+            len(self.image_names): int; size of the dataset.
         '''
 
         return len(self.image_names)
@@ -105,6 +107,8 @@ class VQAImageDataset(Dataset):
         ''' Overwritten method for getting a specific image from the dataset.
         Parameters:
             idx: int; The index of the image.
+        Returns:
+            image; float; Image from the dataset.
         '''
 
         image_path = os.path.join(self.image_dir, self.image_names[idx])

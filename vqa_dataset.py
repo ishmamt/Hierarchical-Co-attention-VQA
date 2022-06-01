@@ -13,10 +13,17 @@ class VQADataSet(Dataset):
     ''' Class for the VQA data set. Uses the VQA python API (https://github.com/GT-Vision-Lab/VQA)
     '''
 
-    def __init__(self, name, questions_json, annotations_json, image_dir, image_prefix, save_results, results_dir):
+    def __init__(self, name, questions_json, annotations_json, image_dir, 
+                image_prefix, save_results, results_dir):
         ''' Constructor for VQADataSet.
         Parameters:
-
+            name: string; Name of the dataset type (train/val).
+            questions_json: string; JSON file for the questions.
+            annotations_json: string; JSON file for the annotations.
+            image_dir: string; Image directory.
+            image_prefix: string; Prefix of image names i.e. "COCO_train2014_".
+            save_results: boolean; Flag for saving results.
+            results_dir: string; Path to save the results.
         '''
 
         self.name = name
@@ -51,7 +58,8 @@ class VQADataSet(Dataset):
         question_ids = vqa.getQuesIds(image_ids)
 
         if self.name == "train":
-            return self.preprocess_dataset_train(vqa, image_ids, image_names, question_ids, save_results, results_dir)
+            return self.preprocess_dataset_train(vqa, image_ids, image_names, 
+                                                question_ids, save_results, results_dir)
             
         if self.name == "val":
             if not os.path.exists(os.path.join("Data", "train", "cache", "answers_frequency.pkl")):
@@ -63,7 +71,22 @@ class VQADataSet(Dataset):
             self.preprocess_dataset_val(vqa, image_ids, image_names, question_ids, answers_frequency, save_results, results_dir)
 
 
-    def preprocess_dataset_train(self, vqa, image_ids, image_names, question_ids, save_results, results_dir):
+    def preprocess_dataset_train(self, vqa, image_ids, image_names, question_ids, 
+                                save_results, results_dir):
+        ''' Preprocessing training dataset.
+        Parameters:
+            vqa: vqa dataset object; VQA Dataset object from VQA API.
+            image_ids: list; List of image ids.
+            image_names: list; List of image names.
+            question_ids: list; List of question ids.
+            save_results: boolean; Flag for saving results.
+            results_dir: string; Path to save the results.
+        Returns:
+            question_vocabulary: dict; Vocabulary of questions.
+            top_answers: dict; Top 1000 answers.
+            answers_frequency: dict; Frequency of answers.
+        '''
+
         # Creating the question_vocabulary (List of all the words in the questions)
         question_vocabulary = defaultdict(lambda: len(question_vocabulary))
         [question_vocabulary[x] for x in ["<pad>", "<sos>", "<eos>", "<unk>"]]  # We get: {"<pad>": 1, "<sos>":2, "<eos>":3, "<unk>":4}
@@ -130,7 +153,18 @@ class VQADataSet(Dataset):
         return question_vocabulary, top_answers, answers_frequency
 
 
-    def preprocess_dataset_val(self, vqa, image_ids, image_names, question_ids, answers_frequency, save_results, results_dir):
+    def preprocess_dataset_val(self, vqa, image_ids, image_names, question_ids, 
+                                answers_frequency, save_results, results_dir):
+        ''' Preprocessing validation dataset.
+        Parameters:
+            vqa: vqa dataset object; VQA Dataset object from VQA API.
+            image_ids: list; List of image ids.
+            image_names: list; List of image names.
+            question_ids: list; List of question ids.
+            save_results: boolean; Flag for saving results.
+            results_dir: string; Path to save the results.
+        '''
+
         if save_results:
             question_ids_top_answers = []  # question_ids containing answers in the top 1000 answers
             # Fetch question_ids which have answers in the top 1000 answers
@@ -158,9 +192,6 @@ class VQADataSet(Dataset):
             np.save(os.path.join(results_dir, "val_image_names.npy"), image_names)
             np.save(os.path.join(results_dir, "val_image_ids.npy"), image_ids)
             np.save(os.path.join(results_dir, "val_quest_ids.npy"), question_ids_top_answers)
-
-
-
 
 
 if __name__ == "__main__":
