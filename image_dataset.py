@@ -36,23 +36,31 @@ def get_image_ids(image_names, image_prefix, type):
         image_ids: list/dict/None; Collection of image ids.
     '''
 
-    progress_bar = tqdm(total=len(image_names))
-    print("Fetching Image IDs.")
+    print("Fetching Image IDs...")
     image_ids = None
 
     if type == "dict":
         image_ids = dict()
         for idx, image_name in enumerate(image_names):
-            progress_bar.update(1)
             id = image_name.split(".")[0].rpartition(image_prefix)[-1]  # image name: COCO_train2014_000000000123.jpg
             image_ids[int(id)] = idx
     elif type == "list":
         image_ids = list()
         for idx, image_name in enumerate(image_names):
-            progress_bar.update(1)
             id = image_name.split(".")[0].rpartition(image_prefix)[-1]  # image name: COCO_train2014_000000000123.jpg
             image_ids.append(int(id))
     return image_ids
+
+
+def get_image_names(image_dir):
+    ''' Returns names of all the images.
+    Parameters:
+        image_dir: string; Image directory.
+    Returns:
+        image_names: list; Names of all the images.
+    '''
+
+    return [file for file in os.listdir(image_dir)]
 
 
 class VQAImageDataset(Dataset):
@@ -73,7 +81,7 @@ class VQAImageDataset(Dataset):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), image_dir)
 
         self.image_dir = image_dir
-        self.image_names = [file for file in os.listdir(self.image_dir)]
+        self.image_names = get_image_names(self.image_dir)
         self.transform = transforms.Compose([transforms.Resize((448, 448)), transforms.ToTensor()])
         self.image_ids = get_image_ids(self.image_names, image_prefix, type)
 
@@ -85,11 +93,13 @@ class VQAImageDataset(Dataset):
             print(f"Saving image ids in {metadata_dir}{name}_enc_idx.npy")
             pickle.dump(self.image_ids, file)
 
+
     def __len__(self):
         ''' Overwritten method for returning size of the dataset.
         '''
 
         return len(self.image_names)
+
 
     def __getitem__(self, idx):
         ''' Overwritten method for getting a specific image from the dataset.
