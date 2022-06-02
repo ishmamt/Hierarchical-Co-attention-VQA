@@ -142,7 +142,7 @@ def save_image_encodings(image_dir, image_prefix, name, metadata_dir, encoded_im
         print(f"Making directory: {encoded_image_dir}")
         os.mkdir(encoded_image_dir)
     
-    print(f"Dumping {name} image encodings at {encoded_image_dir}")
+    print(f"Dumping {name} image encodings at {encoded_image_dir}...")
     progress_bar = tqdm(total=len(image_dataset_loader))
 
     for idx, image in enumerate(image_dataset_loader):

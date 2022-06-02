@@ -1,20 +1,22 @@
 import os
+from tkinter import image_names
 import numpy as np
 import errno
 import operator
 import pickle
 from collections import defaultdict
 from torch.utils.data import Dataset
+from torchvision import transforms
 from vqa import VQA
 from image_dataset import get_image_ids, get_image_names, load_image
 
 
 class VQADataSet(Dataset):
-    ''' Class for the VQA data set. Uses the VQA python API (https://github.com/GT-Vision-Lab/VQA)
+    ''' Class for the VQA data set. Uses the VQA python API (https://github.com/GT-Vision-Lab/VQA).
     '''
 
     def __init__(self, name, questions_json, annotations_json, image_dir, 
-                image_prefix, save_results, results_dir):
+                image_prefix, collate=True, save_results=False, results_dir=None):
         ''' Constructor for VQADataSet.
         Parameters:
             name: string; Name of the dataset type (train/val).
@@ -22,8 +24,9 @@ class VQADataSet(Dataset):
             annotations_json: string; JSON file for the annotations.
             image_dir: string; Image directory.
             image_prefix: string; Prefix of image names i.e. "COCO_train2014_".
-            save_results: boolean; Flag for saving results.
-            results_dir: string; Path to save the results.
+            collate: boolean; Flag to indicate that the results have already been preprocessed and saved. We will not need to do it again. Also images have been encoded.
+            save_results: boolean; Flag for saving results such as vocabulary, top 1000 answers etc.
+            results_dir: string; Path to the saved results.
         '''
 
         self.name = name
@@ -33,33 +36,74 @@ class VQADataSet(Dataset):
         self.image_prefix = image_prefix
         self.results_dir = results_dir
         self.save_results = save_results
-
-        self.preprocess_dataset(self.save_results, self.results_dir)
-
-
-    def preprocess_dataset(self, save_results=False, results_dir=None):
-        ''' Preprocessing the VQA dataset.
-        Parameters:
-            save_results: boolean; Flag for saving results.
-            results_dir: string; Path to save the results.
-        '''
-
-        print("Preprocessing VQA Dataset...")
+        self.collate = collate
 
         if not os.path.exists(self.annotations_json):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.annotations_json)
         if not os.path.exists(self.questions_json):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.questions_json)
 
-        vqa = VQA(self.annotations_json, self.questions_json, )  # Using the VQA API to load data from the JSON files.
+        self.vqa = VQA(self.annotations_json, self.questions_json)  # Using the VQA API to load data from the JSON files.
+        self.transform = transforms.Compose([transforms.Resize((448, 448)), transforms.ToTensor()])
 
+        if self.collate:
+            # if collate is true, then results have already been saved.
+            print("Loading pre-preocesses files...")
+            if not self.results_dir and os.path.isdir(self.results_dir):
+                print(self.results_dir)
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
+
+            if self.name == "train":
+                with open(os.path.join(self.results_dir, "question_vocabulary.pkl"), 'rb') as f:
+                    self.question_vocabulary = pickle.load(f)
+                with open(os.path.join(self.results_dir, "top_answers.pkl"), 'rb') as f:
+                    self.top_answers = pickle.load(f)
+                with open(os.path.join(self.results_dir, "answers_frequency.pkl"), 'rb') as f:
+                    self.answers_frequency = pickle.load(f)
+            
+            elif self.name == "val":
+                with open(os.path.join("Data", "train", "cache", "question_vocabulary.pkl"), 'rb') as f:
+                    self.question_vocabulary = pickle.load(f)
+                with open(os.path.join("Data", "train", "cache", "top_answers.pkl"), 'rb') as f:
+                    self.top_answers = pickle.load(f)
+                with open(os.path.join("Data", "train", "cache", "answers_frequency.pkl"), 'rb') as f:
+                    self.answers_frequency = pickle.load(f)
+
+            self.image_names = np.load(os.path.join(self.results_dir, f"{self.name}_image_names.npy"), encoding='latin1').tolist()
+            self.image_ids = np.load(os.path.join(self.results_dir, f"{self.name}_image_ids.npy"), encoding='latin1').tolist()
+            self.question_ids = np.load(os.path.join(self.results_dir, f"{self.name}_quest_ids.npy"), encoding='latin1').tolist()
+
+        else:
+            if self.name == "train":
+                self.question_vocabulary, self.top_answers, self.answers_frequency, self.image_names, self.image_ids, self.question_ids = self.preprocess_dataset()
+
+            elif self.name == "val":
+                for i in ["question_vocabulary", "top_answers", "answers_frequency"]:
+                    if not os.path.exists(os.path.join("Data", "train", "cache", f"{i}.pkl")):
+                        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), os.path.join("Data", "train", "cache", f"{i}.pkl"))
+
+                with open(os.path.join("Data", "train", "cache", "question_vocabulary.pkl"), 'rb') as f:
+                    self.question_vocabulary = pickle.load(f)
+                with open(os.path.join("Data", "train", "cache", "top_answers.pkl"), 'rb') as f:
+                    self.top_answers = pickle.load(f)
+                with open(os.path.join("Data", "train", "cache", "answers_frequency.pkl"), 'rb') as f:
+                    self.answers_frequency = pickle.load(f)
+
+                self.image_names, self.image_ids, self.question_ids = self.preprocess_dataset()
+
+
+    def preprocess_dataset(self):
+        ''' Preprocessing the VQA dataset.
+        '''
+
+        print("Preprocessing VQA Dataset...")
         image_names = get_image_names(self.image_dir)
         image_ids = get_image_ids(image_names, self.image_prefix, "list")
-        question_ids = vqa.getQuesIds(image_ids)
+        question_ids = self.vqa.getQuesIds(image_ids)
 
         if self.name == "train":
-            return self.preprocess_dataset_train(vqa, image_ids, image_names, 
-                                                question_ids, save_results, results_dir)
+            return self.preprocess_dataset_train(image_ids, image_names, 
+                                                question_ids)
             
         if self.name == "val":
             if not os.path.exists(os.path.join("Data", "train", "cache", "answers_frequency.pkl")):
@@ -68,23 +112,22 @@ class VQADataSet(Dataset):
             with open(os.path.join("Data", "train", "cache", "answers_frequency.pkl"), 'rb') as f:
                 answers_frequency = pickle.load(f)
 
-            self.preprocess_dataset_val(vqa, image_ids, image_names, question_ids, answers_frequency, save_results, results_dir)
+            return self.preprocess_dataset_val(image_ids, image_names, question_ids, answers_frequency)
 
 
-    def preprocess_dataset_train(self, vqa, image_ids, image_names, question_ids, 
-                                save_results, results_dir):
+    def preprocess_dataset_train(self, image_ids, image_names, question_ids):
         ''' Preprocessing training dataset.
         Parameters:
-            vqa: vqa dataset object; VQA Dataset object from VQA API.
             image_ids: list; List of image ids.
             image_names: list; List of image names.
             question_ids: list; List of question ids.
-            save_results: boolean; Flag for saving results.
-            results_dir: string; Path to save the results.
         Returns:
             question_vocabulary: dict; Vocabulary of questions.
             top_answers: dict; Top 1000 answers.
             answers_frequency: dict; Frequency of answers.
+            image_names: list; List of image names.
+            image_ids: list; List of image ids.
+            question_ids: list; List of question ids.
         '''
 
         # Creating the question_vocabulary (List of all the words in the questions)
@@ -94,8 +137,8 @@ class VQADataSet(Dataset):
         # Filling up the question_vocabulary.
         answers_frequency = {}  # {answer: frequency of that answer}
         for question_id in question_ids:
-            annotation_dict = vqa.loadQA(question_id)[0]
-            question_dict = vqa.loadQQA(question_id)[0]
+            annotation_dict = self.vqa.loadQA(question_id)[0]
+            question_dict = self.vqa.loadQQA(question_id)[0]
 
             question = question_dict["question"][:-1]  # Removing the "?"
             [question_vocabulary[x] for x in question.lower().strip().split(" ")]  # Creating the vocabulary
@@ -114,12 +157,12 @@ class VQADataSet(Dataset):
             if len(top_answers) == 1000:
                 break  # take only 1000 most frequent answers for classification.
         
-        if save_results:
+        if self.save_results:
             question_ids_top_answers = []  # question_ids containing answers in the top 1000 answers
             # Fetch question_ids which have answers in the top 1000 answers
             for question_id in question_ids:
-                annotation_dict = vqa.loadQA(question_id)[0]
-                question_dict = vqa.loadQQA(question_id)[0]
+                annotation_dict = self.vqa.loadQA(question_id)[0]
+                question_dict = self.vqa.loadQQA(question_id)[0]
 
                 not_found = True
                 for answer in annotation_dict["answers"]:
@@ -132,44 +175,40 @@ class VQADataSet(Dataset):
                 question_ids_top_answers.append(question_id)
             
             # saving results
-            print("Saving results...")
-            if not results_dir:
-                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), results_dir)
-            if not os.path.isdir(results_dir):
-                print(f"Making directory: {results_dir}")
-                os.mkdir(results_dir)
+            print("Saving pre-processed files...")
+            if not self.results_dir:
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
+            if not os.path.isdir(self.results_dir):
+                print(f"Making directory: {self.results_dir}")
+                os.mkdir(self.results_dir)
 
-            np.save(os.path.join(results_dir, "train_image_names.npy"), image_names)
-            np.save(os.path.join(results_dir, "train_image_ids.npy"), image_ids)
-            np.save(os.path.join(results_dir, "train_quest_ids.npy"), question_ids_top_answers)
+            np.save(os.path.join(self.results_dir, "train_image_names.npy"), image_names)
+            np.save(os.path.join(self.results_dir, "train_image_ids.npy"), image_ids)
+            np.save(os.path.join(self.results_dir, "train_quest_ids.npy"), question_ids_top_answers)
 
-            with open(os.path.join(results_dir, "question_vocabulary.pkl"), 'wb') as f:
+            with open(os.path.join(self.results_dir, "question_vocabulary.pkl"), 'wb') as f:
                 pickle.dump(dict(question_vocabulary), f)
-            with open(os.path.join(results_dir, "top_answers.pkl"), 'wb') as f:
+            with open(os.path.join(self.results_dir, "top_answers.pkl"), 'wb') as f:
                 pickle.dump(dict(top_answers), f)
-            with open(os.path.join(results_dir, "answers_frequency.pkl"), 'wb') as f:
+            with open(os.path.join(self.results_dir, "answers_frequency.pkl"), 'wb') as f:
                 pickle.dump(answers_frequency, f)
     
-        return question_vocabulary, top_answers, answers_frequency
+        return question_vocabulary, top_answers, answers_frequency, image_names, image_ids, question_ids_top_answers
 
 
-    def preprocess_dataset_val(self, vqa, image_ids, image_names, question_ids, 
-                                answers_frequency, save_results, results_dir):
+    def preprocess_dataset_val(self, image_ids, image_names, question_ids, answers_frequency):
         ''' Preprocessing validation dataset.
         Parameters:
-            vqa: vqa dataset object; VQA Dataset object from VQA API.
             image_ids: list; List of image ids.
             image_names: list; List of image names.
             question_ids: list; List of question ids.
-            save_results: boolean; Flag for saving results.
-            results_dir: string; Path to save the results.
         '''
 
-        if save_results:
+        if self.save_results:
             question_ids_top_answers = []  # question_ids containing answers in the top 1000 answers
             # Fetch question_ids which have answers in the top 1000 answers
             for question_id in question_ids:
-                annotation_dict = vqa.loadQA(question_id)[0]
+                annotation_dict = self.vqa.loadQA(question_id)[0]
 
                 not_found = True
                 for answer in annotation_dict["answers"]:
@@ -182,16 +221,18 @@ class VQADataSet(Dataset):
                 question_ids_top_answers.append(question_id)
             
             # saving results
-            print("Saving results...")
-            if not results_dir:
-                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), results_dir)
-            if not os.path.isdir(results_dir):
-                print(f"Making directory: {results_dir}")
-                os.mkdir(results_dir)
+            print("Saving pre-processed files...")
+            if not self.results_dir:
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
+            if not os.path.isdir(self.results_dir):
+                print(f"Making directory: {self.results_dir}")
+                os.mkdir(self.results_dir)
 
-            np.save(os.path.join(results_dir, "val_image_names.npy"), image_names)
-            np.save(os.path.join(results_dir, "val_image_ids.npy"), image_ids)
-            np.save(os.path.join(results_dir, "val_quest_ids.npy"), question_ids_top_answers)
+            np.save(os.path.join(self.results_dir, "val_image_names.npy"), image_names)
+            np.save(os.path.join(self.results_dir, "val_image_ids.npy"), image_ids)
+            np.save(os.path.join(self.results_dir, "val_quest_ids.npy"), question_ids_top_answers)
+
+            return image_names, image_ids, question_ids_top_answers
 
 
 if __name__ == "__main__":
@@ -200,10 +241,11 @@ if __name__ == "__main__":
     image_prefix = "COCO_train2014_"
     qjson = "Data/train/questions/train_quest_10K.json"
     ajson = "Data/train/annotations/train_ann_10K.json"
+    collate = True
     save_results = True
-    results_dir = "Data/train/cache"
+    results_dir = "Data/train/cache/"
 
-    train_dataset = VQADataSet(name, qjson, ajson, image_dir, image_prefix, save_results, results_dir)
+    train_dataset = VQADataSet(name, qjson, ajson, image_dir, image_prefix, collate, save_results, results_dir)
 
 
     name = "val"
@@ -211,7 +253,8 @@ if __name__ == "__main__":
     image_prefix = "COCO_val2014_"
     qjson = "Data/val/questions/val_quest_3K.json"
     ajson = "Data/val/annotations/val_ann_3K.json"
+    collate = True
     save_results = True
-    results_dir = "Data/val/cache"
+    results_dir = "Data/val/cache/"
 
-    val_dataset = VQADataSet(name, qjson, ajson, image_dir, image_prefix, save_results, results_dir)
+    val_dataset = VQADataSet(name, qjson, ajson, image_dir, image_prefix, collate, save_results, results_dir)
