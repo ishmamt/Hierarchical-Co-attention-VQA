@@ -106,7 +106,7 @@ class VQAImageDataset(Dataset):
     def __getitem__(self, idx):
         ''' Overwritten method for getting a specific image from the dataset.
         Parameters:
-            idx: int; The index of the image.
+            idx: int; The index of the image we want to fetch.
         Returns:
             image; float; Image from the dataset.
         '''

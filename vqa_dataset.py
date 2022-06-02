@@ -1,10 +1,11 @@
 import os
-from tkinter import image_names
 import numpy as np
 import errno
 import operator
 import pickle
 from collections import defaultdict
+from statistics import mode
+import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 from vqa import VQA
@@ -90,6 +91,68 @@ class VQADataSet(Dataset):
                     self.answers_frequency = pickle.load(f)
 
                 self.image_names, self.image_ids, self.question_ids = self.preprocess_dataset()
+    
+
+    def __len__(self):
+        ''' Overloaded function to return the length of the dataset.
+        Returns:
+            length: int; Length of the dataset.
+        '''
+
+        return len(self.question_ids)
+    
+
+    def __getitem__(self, idx):
+        ''' Overloaded function to return a single instance from the dataset.
+        Parameters:
+            idx: int; Index of the instance that we wan to fetch.
+        Returns:
+            instance: tuple; Returns the image, question and answer.
+        '''
+        
+        question_id = self.question_ids[idx]
+        image_id = self.vqa.getImgIds([question_id])[0]
+
+        answers = self.vqa.loadQA(question_id)[0]["answers"]
+        question = self.vqa.loadQQA(question_id)[0]["question"][:-1]
+        image_name = self.image_names[self.image_ids.index(image_id)]
+
+        # Loading and preparing the image
+        image = load_image(os.path.join(self.image_dir, image_name))
+        image = self.transform(image).float()
+
+        # Preparing the question
+        question = self.encode_question(question)
+        question = torch.from_numpy(np.array(question))  # set to int32
+
+        # Preparing the answer. We will take the answer that appears the most.
+        answers_list = [answer["answer"].lower() for answer in answers]
+        answer = None
+
+        while len(answers_list) > 0:
+            if mode(answers_list) in self.top_answers:
+                answer = mode(answers_list)
+                break
+            else:
+                answers_list = list(filter(lambda a: a != mode(answers_list), answers_list))  # deleting all instances of that answer from the list.
+
+        if answer:
+            answer = torch.from_numpy(np.array([self.top_answers[answer]]))
+        else:
+            answer = torch.from_numpy(np.array([0]))  # set to always answer "no" i.e. [0] when encountering something not in the top 1000 answers.
+
+        return image, question, answer
+    
+
+    def encode_question(self, question):
+        ''' Encode the question using the vocabulary dictionary.
+        Parameters:
+            question: string; The question that we want to encode.
+        Returns:
+            encoded_question: list; Encoded Question with <sos> and <eos> at start and end.
+        '''
+
+        return [self.question_vocabulary["<sos>"]] + [self.question_vocabulary[x.lower()] for x in question.split(" ") if x.lower() in self.question_vocabulary] + [self.question_vocabulary["<eos>"]]
 
 
     def preprocess_dataset(self):
