@@ -49,7 +49,7 @@ class VQADataSet(Dataset):
 
         if self.collate:
             # if collate is true, then results have already been saved.
-            print("Loading pre-preocesses files...")
+            print(f"Loading pre-preocessed files for {self.name}...")
             if not self.results_dir and os.path.isdir(self.results_dir):
                 print(self.results_dir)
                 raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
