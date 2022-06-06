@@ -86,7 +86,7 @@ class ExperimentRunner():
         self.image_encoder = load_resnet(self.DEVICE)
 
         # Checkpoints
-        self.checkpoints_dir = os.path.join("saved")
+        self.checkpoints_dir = os.path.join("Data", "saved")
         if not os.path.isdir(self.checkpoints_dir):
             os.makedirs(self.checkpoints_dir)
         self.experiment_id = len(os.listdir(self.checkpoints_dir))
