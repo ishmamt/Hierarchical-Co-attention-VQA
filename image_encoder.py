@@ -22,9 +22,9 @@ def load_resnet(device):
 
     if device == "cuda":
         model = model.cuda()
-        print(f"Loading Resnet18 with: {device} | {get_device_name(current_device())}.")
+        print(f"Loading Resnet18 with: {device} | {get_device_name(current_device())}...")
     else: 
-        print(f"Loading Resnet18 with: {device}.")
+        print(f"Loading Resnet18 with: {device}...")
     model.eval()
 
     return model

@@ -108,8 +108,8 @@ class CoattentionNet(nn.Module):
         H_v = self.tanh(torch.matmul(self.W_v, V) + torch.matmul(torch.matmul(self.W_q, Q.permute(0, 2, 1)), C))                            # batch_size x k x 196
         H_q = self.tanh(torch.matmul(self.W_q, Q.permute(0, 2, 1)) + torch.matmul(torch.matmul(self.W_v, V), C.permute(0, 2, 1)))           # batch_size x k x length_of_question
 
-        a_v = fn.softmax(torch.matmul(torch.t(self.w_hv), H_v), dim=2) # batch_size x 1 x 196
-        a_q = fn.softmax(torch.matmul(torch.t(self.w_hq), H_q), dim=2) # batch_size x 1 x length_of_question
+        a_v = fn.softmax(torch.matmul(torch.t(self.W_hv), H_v), dim=2) # batch_size x 1 x 196
+        a_q = fn.softmax(torch.matmul(torch.t(self.W_hq), H_q), dim=2) # batch_size x 1 x length_of_question
 
         v = torch.squeeze(torch.matmul(a_v, V.permute(0, 2, 1))) # batch_size x 512
         q = torch.squeeze(torch.matmul(a_q, Q))                  # batch_size x 512

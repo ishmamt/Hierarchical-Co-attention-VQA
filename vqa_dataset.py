@@ -123,7 +123,7 @@ class VQADataSet(Dataset):
 
         # Preparing the question
         question = self.encode_question(question)
-        question = torch.from_numpy(np.array(question))  # set to int32
+        question = torch.from_numpy(np.array(question)).long()  # set to int64
 
         # Preparing the answer. We will take the answer that appears the most.
         answers_list = [answer["answer"].lower() for answer in answers]
@@ -137,9 +137,9 @@ class VQADataSet(Dataset):
                 answers_list = list(filter(lambda a: a != mode(answers_list), answers_list))  # deleting all instances of that answer from the list.
 
         if answer:
-            answer = torch.from_numpy(np.array([self.top_answers[answer]]))
+            answer = torch.from_numpy(np.array([self.top_answers[answer]])).long()
         else:
-            answer = torch.from_numpy(np.array([0]))  # set to always answer "no" i.e. [0] when encountering something not in the top 1000 answers.
+            answer = torch.from_numpy(np.array([0])).long()  # set to always answer "no" i.e. [0] when encountering something not in the top 1000 answers.
 
         return image, question, answer
     
@@ -243,7 +243,7 @@ class VQADataSet(Dataset):
                 raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
             if not os.path.isdir(self.results_dir):
                 print(f"Making directory: {self.results_dir}")
-                os.mkdir(self.results_dir)
+                os.makedirs(self.results_dir)
 
             np.save(os.path.join(self.results_dir, "train_image_names.npy"), image_names)
             np.save(os.path.join(self.results_dir, "train_image_ids.npy"), image_ids)
@@ -289,7 +289,7 @@ class VQADataSet(Dataset):
                 raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.results_dir)
             if not os.path.isdir(self.results_dir):
                 print(f"Making directory: {self.results_dir}")
-                os.mkdir(self.results_dir)
+                os.makedirs(self.results_dir)
 
             np.save(os.path.join(self.results_dir, "val_image_names.npy"), image_names)
             np.save(os.path.join(self.results_dir, "val_image_ids.npy"), image_ids)

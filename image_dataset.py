@@ -87,7 +87,7 @@ class VQAImageDataset(Dataset):
 
         if not os.path.isdir(metadata_dir):
             print(f"Making directory: {metadata_dir}")
-            os.mkdir(metadata_dir)
+            os.makedirs(metadata_dir)
 
         with open(os.path.join(metadata_dir, f"{name}_enc_idx.npy"), "wb") as file:
             print(f"Saving image ids in {metadata_dir}{name}_enc_idx.npy")
@@ -140,7 +140,7 @@ def save_image_encodings(image_dir, image_prefix, name, metadata_dir, encoded_im
 
     if not os.path.isdir(encoded_image_dir):
         print(f"Making directory: {encoded_image_dir}")
-        os.mkdir(encoded_image_dir)
+        os.makedirs(encoded_image_dir)
     
     print(f"Dumping {name} image encodings at {encoded_image_dir}...")
     progress_bar = tqdm(total=len(image_dataset_loader))
